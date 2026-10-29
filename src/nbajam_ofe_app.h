@@ -16,6 +16,9 @@
 #include "mod_swap.h"
 #include "watchdog.h"
 #include "window_title.h"
+#if NBAJAM_UWP
+#include "uwp_platform.h"
+#endif
 
 #include <rex/cvar.h>
 #include <rex/input/input_system.h>
@@ -89,8 +92,14 @@ class NbajamOfeApp : public rex::ReXApp {
     // moment later, so a plain double-click filled the screen and then
     // dropped into a window - which is both startling and not what this port
     // is for.
+    //
+    // On the Xbox there is no desktop to be a window on, so the reverse.
     if (!rex::cvar::HasNonDefaultValue("fullscreen")) {
+#if NBAJAM_UWP
+      REXCVAR_SET(fullscreen, true);
+#else
       REXCVAR_SET(fullscreen, false);
+#endif
     }
     // Stated at boot because the game does not query the mask until well into
     // the front end, so the log is the only way to confirm it without playing.
@@ -135,6 +144,14 @@ class NbajamOfeApp : public rex::ReXApp {
     }
     paths.user_data_root =
         NbaSaveRootFor(paths.user_data_root, paths.game_data_root);
+#if NBAJAM_UWP
+    // A package is installed read-only, so saves go to the app's own storage.
+    // Each mod is an app of its own on the console, so this is already one
+    // folder per mod without saves.path having to say so.
+    if (const std::filesystem::path local = NbaUwpLocalState(); !local.empty()) {
+      paths.user_data_root = local / "saves";
+    }
+#endif
     // And this is the only place that knows which root won, which is what a
     // swap needs to find the list of mods and its place in it.
     NbaModSwapUseRoot(paths.game_data_root);

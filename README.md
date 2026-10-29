@@ -59,6 +59,7 @@ the title; the build reads an extracted XBLA package and never redistributes it.
 | `tools/` | Gap recovery, guest debugging, the post-codegen instruction repair, the mod pipeline and the manager |
 | `templates/` | One codegen template override |
 | `RELEASE.md` | What a release contains and what a player has to provide |
+| `XBOX.md`, `packaging/xbox/` | Xbox One Developer Mode apps (UWP, clang-cl): base game, 2020s and Legends. Not yet runnable; see the status there |
 
 `generated/` (≈166 MB, 5.7M lines) and `out/` are reproducible and not tracked.
 

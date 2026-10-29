@@ -51,6 +51,27 @@ bool Wanted() {
   return !off;
 }
 
+// An app may only change its memory through the FromApp versions; they take
+// the same arguments.
+void* Commit(void* at, SIZE_T size) {
+#if NBAJAM_UWP
+  return VirtualAllocFromApp(at, size, MEM_COMMIT, PAGE_READWRITE);
+#else
+  return VirtualAlloc(at, size, MEM_COMMIT, PAGE_READWRITE);
+#endif
+}
+
+bool MakeReadWrite(void* at, SIZE_T size, DWORD* was) {
+#if NBAJAM_UWP
+  ULONG old = 0;
+  const bool ok = VirtualProtectFromApp(at, size, PAGE_READWRITE, &old) != 0;
+  *was = old;
+  return ok;
+#else
+  return VirtualProtect(at, size, PAGE_READWRITE, was) != 0;
+#endif
+}
+
 }  // namespace
 
 void NbaMapNullPage() {
@@ -77,7 +98,7 @@ void NbaMapNullPage() {
     // pages nothing should touch are left without access. Opening this one
     // is all that is needed.
     DWORD was = 0;
-    if (VirtualProtect(at, kNullPageSize, PAGE_READWRITE, &was)) {
+    if (MakeReadWrite(at, kNullPageSize, &was)) {
       REXLOG_INFO("null page: opened {} KB at guest zero (was protect {:X})",
                   kNullPageSize / 1024, was);
     } else {
@@ -87,7 +108,7 @@ void NbaMapNullPage() {
   }
   // The runtime reserves the whole arena, so this is a commit inside it
   // rather than a reservation of its own.
-  void* got = VirtualAlloc(at, kNullPageSize, MEM_COMMIT, PAGE_READWRITE);
+  void* got = Commit(at, kNullPageSize);
   if (!got) {
     REXLOG_WARN("null page: could not map address zero ({}); a missing asset "
                 "will take the game down", GetLastError());

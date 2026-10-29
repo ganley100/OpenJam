@@ -183,6 +183,35 @@
             "displayName": "macOS ARM64 RelWithDebInfo",
             "inherits": "mac-arm64-base",
             "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+        },
+        {
+            "name": "xbox-uwp-base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang-cl",
+                "CMAKE_CXX_COMPILER": "clang-cl",
+                "CMAKE_PREFIX_PATH": "$env{REXGLUE_UWP_SDK}",
+                "NBAJAM_UWP": "ON"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "xbox-uwp-release",
+            "displayName": "Xbox One UWP (clang-cl) Release",
+            "inherits": "xbox-uwp-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+        },
+        {
+            "name": "xbox-uwp-relwithdebinfo",
+            "displayName": "Xbox One UWP (clang-cl) RelWithDebInfo",
+            "inherits": "xbox-uwp-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
         }
     ],
     "buildPresets": [
@@ -203,6 +232,8 @@
         { "name": "mac-amd64-relwithdebinfo", "configurePreset": "mac-amd64-relwithdebinfo" },
         { "name": "mac-arm64-debug", "configurePreset": "mac-arm64-debug" },
         { "name": "mac-arm64-release", "configurePreset": "mac-arm64-release" },
-        { "name": "mac-arm64-relwithdebinfo", "configurePreset": "mac-arm64-relwithdebinfo" }
+        { "name": "mac-arm64-relwithdebinfo", "configurePreset": "mac-arm64-relwithdebinfo" },
+        { "name": "xbox-uwp-release", "configurePreset": "xbox-uwp-release" },
+        { "name": "xbox-uwp-relwithdebinfo", "configurePreset": "xbox-uwp-relwithdebinfo" }
     ]
 }

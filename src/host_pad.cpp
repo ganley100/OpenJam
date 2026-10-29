@@ -15,7 +15,11 @@
 #include <windows.h>
 #include <xinput.h>
 
+// The app container has its own import library for the same XInput 1.4; the
+// Xbox build links it from CMakeLists.txt.
+#if !NBAJAM_UWP
 #pragma comment(lib, "xinput.lib")
+#endif
 
 bool NbaHostPad(uint16_t* buttons, uint8_t* left_trigger) {
   // Slots with nothing in them are swept only now and then: asking about an

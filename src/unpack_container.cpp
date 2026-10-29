@@ -199,6 +199,12 @@ int NbaUnpackLiveContainer(
 }
 
 void NbaUnpackIfAsked() {
+#if NBAJAM_UWP
+  // An app has no command line to ask with, and CommandLineToArgvW is a
+  // desktop-only shell function. The game arrives already unpacked inside
+  // the package; see XBOX.md.
+  return;
+#else
   int argc = 0;
   LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
   if (!argv) return;
@@ -262,4 +268,5 @@ void NbaUnpackIfAsked() {
                 into.string().c_str());
   Say(console, line);
   ExitProcess(0);
+#endif
 }

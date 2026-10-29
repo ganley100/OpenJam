@@ -50,7 +50,9 @@
 #include "apt_trace.h"
 
 #include <windows.h>
-#include <dbghelp.h>
+#if !NBAJAM_UWP
+#include <dbghelp.h>   // desktop only; the Xbox build logs no stack
+#endif
 
 #include <atomic>
 #include <cstdint>
@@ -123,6 +125,7 @@ bool Stacks() {
 }
 
 void DumpStack() {
+#if !NBAJAM_UWP
   // Twice a second is plenty: the question is which functions a screen runs,
   // not how often, and a stack line is long.
   static uint64_t last = 0;
@@ -149,6 +152,7 @@ void DumpStack() {
     }
   }
   REXLOG_INFO("apt_stack:{}", line);
+#endif
 }
 
 bool Context() {
