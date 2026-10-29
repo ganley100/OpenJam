@@ -1,0 +1,128 @@
+# Build the PC version on GitHub's Windows machines.
+#
+# Started by hand only: Actions tab -> "Build Windows" -> Run workflow.
+#
+# The build needs the game's own executable, default.xex, which is EA's code
+# and is not in this repository. Codegen reads it, and the finished build
+# contains the recompiled game. So this workflow:
+#
+#   - refuses to run while the repository is public, so neither the xex nor
+#     the build can be downloaded by anybody else; and
+#   - fetches the xex from a private link you provide, saved as the
+#     repository secret GAME_XEX_URL (Settings -> Secrets and variables ->
+#     Actions). Any direct-download link works, for instance a release asset
+#     in a private repository or a cloud-storage link.
+#
+# The result is a workflow artifact holding nbajam_ofe.exe and the runtime
+# DLLs, kept for three days. Put them in your staged game folder (see
+# RELEASE.md). This builds the PC version only; the Xbox build needs a UWP
+# build of ReXGlue, which does not exist yet (see XBOX.md).
+
+name: Build Windows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  REXGLUE_VERSION: "0.10.0"
+  PRESET: win-amd64-relwithdebinfo
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 240
+    steps:
+      - name: Refuse to build in a public repository
+        if: ${{ !github.event.repository.private }}
+        shell: bash
+        run: |
+          echo "::error::This repository is public. Make it private first (Settings -> General -> Danger Zone -> Change visibility): the build needs the game's own code and would be downloadable by anyone."
+          exit 1
+
+      - name: Check the game file link is set
+        shell: bash
+        env:
+          GAME_XEX_URL: ${{ secrets.GAME_XEX_URL }}
+        run: |
+          if [ -z "$GAME_XEX_URL" ]; then
+            echo "::error::Add a repository secret named GAME_XEX_URL holding a private download link to your default.xex."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      # The manifest reads the game from ../Root, beside the checkout.
+      - name: Fetch default.xex
+        shell: bash
+        env:
+          GAME_XEX_URL: ${{ secrets.GAME_XEX_URL }}
+        run: |
+          mkdir -p ../Root
+          curl -fsSL --retry 3 -o ../Root/default.xex "$GAME_XEX_URL"
+          size=$(stat -c %s ../Root/default.xex)
+          magic=$(head -c 4 ../Root/default.xex)
+          echo "default.xex: $size bytes"
+          if [ "$magic" != "XEX2" ]; then
+            echo "::error::The file at GAME_XEX_URL is not an Xbox 360 executable (expected it to start with XEX2). Check the link downloads the file itself, not a web page."
+            exit 1
+          fi
+
+      - name: Fetch the ReXGlue SDK
+        shell: pwsh
+        run: |
+          $zip = "$env:RUNNER_TEMP\rexglue.zip"
+          Invoke-WebRequest -Uri "https://github.com/rexglue/rexglue-sdk/releases/download/v$env:REXGLUE_VERSION/rexglue-sdk-$env:REXGLUE_VERSION-win-amd64.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\rexglue"
+          $sdk = "$env:RUNNER_TEMP\rexglue\win-amd64"
+          $cli = Get-ChildItem $sdk -Recurse -Filter rexglue.exe | Select-Object -First 1
+          if (-not $cli) { throw "rexglue.exe not found in the SDK download" }
+          "REXGLUE_SDK=$sdk" >> $env:GITHUB_ENV
+          "REXGLUE_CLI=$($cli.FullName)" >> $env:GITHUB_ENV
+
+      # The runner image's LLVM can lag behind what the MSVC STL needs for
+      # C++23; BUILDING.md was done with Clang 22.
+      - name: Install current LLVM
+        shell: pwsh
+        run: |
+          choco upgrade llvm -y --no-progress
+          & "C:\Program Files\LLVM\bin\clang.exe" --version
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # Codegen also writes generated/rexglue.cmake, which CMakeLists.txt
+      # includes, so it has to run once before CMake can configure.
+      - name: Codegen
+        shell: pwsh
+        run: |
+          & $env:REXGLUE_CLI codegen nbajam_ofe_manifest.toml
+          if ($LASTEXITCODE -ne 0) { throw "codegen failed ($LASTEXITCODE)" }
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          $env:PATH = "C:\Program Files\LLVM\bin;$env:PATH"
+          cmake --preset $env:PRESET -DCMAKE_PREFIX_PATH="$env:REXGLUE_SDK"
+          if ($LASTEXITCODE -ne 0) { throw "configure failed" }
+
+      # The generated translation units are large; a hosted runner has 16 GB,
+      # so fewer jobs than cores keeps the compiler out of swap.
+      - name: Build
+        shell: pwsh
+        run: |
+          $env:PATH = "C:\Program Files\LLVM\bin;$env:PATH"
+          cmake --build --preset $env:PRESET --parallel 3
+          if ($LASTEXITCODE -ne 0) { throw "build failed" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nbajam_ofe-windows
+          retention-days: 3
+          path: |
+            out/build/${{ env.PRESET }}/*.exe
+            out/build/${{ env.PRESET }}/*.dll
+            metadata/
